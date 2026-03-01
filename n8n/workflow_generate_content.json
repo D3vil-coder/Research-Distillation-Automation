@@ -1,0 +1,82 @@
+{
+    "name": "Generate Content",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "generate",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "1",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                260,
+                460
+            ],
+            "webhookId": "generate"
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-2.0-flash",
+                "prompt": "={{ 'You are a social media expert for tech content. Write 3 professional captions for this robotics research paper. Return ONLY valid JSON (no markdown, no backticks) with these exact keys:\\n\\nxCaption: For Twitter/X. Punchy, under 280 chars, include relevant hashtags.\\n\\ninstaCaption: For Instagram. Engaging, use emojis, include sections like WHY THIS MATTERS and THE IMPACT, end with hashtags.\\n\\nlinkedinCaption: For LinkedIn. Professional thought-leadership style, use bullet points, ask engaging question at end.\\n\\nPaper Title: ' + $json.body.title + '\\n\\nAbstract: ' + $json.body.abstract }}",
+                "options": {}
+            },
+            "id": "2",
+            "name": "Gemini Captions",
+            "type": "n8n-nodes-base.googleGemini",
+            "typeVersion": 1,
+            "position": [
+                480,
+                460
+            ],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "YOUR_GEMINI_CREDENTIAL_ID",
+                    "name": "Google Gemini account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ (() => {\n  let captions = {};\n  try {\n    const text = $node[\"Gemini Captions\"].json.text || '';\n    const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) captions = JSON.parse(jsonMatch[0]);\n  } catch(e) {\n    captions = {\n      xCaption: $node[\"Gemini Captions\"].json.text?.substring(0, 280) || '',\n      instaCaption: $node[\"Gemini Captions\"].json.text || '',\n      linkedinCaption: $node[\"Gemini Captions\"].json.text || ''\n    };\n  }\n  \n  // Generate image URL using Pollinations (free, no auth)\n  const keywords = $json.body.title.toLowerCase().replace(/[^a-z ]/g, '').split(' ').filter(w => w.length > 3).slice(0, 4).join(' ');\n  const prompt = encodeURIComponent('hyperrealistic 3D ' + keywords + ' futuristic robot technology glassmorphism purple cyan neon, octane render 8K');\n  const imageUrl = 'https://image.pollinations.ai/prompt/' + prompt + '?width=1024&height=1024&nologo=true';\n  \n  return {\n    xCaption: captions.xCaption || '',\n    instaCaption: captions.instaCaption || '',\n    linkedinCaption: captions.linkedinCaption || '',\n    caption: captions.instaCaption || $node[\"Gemini Captions\"].json.text,\n    imageUrl: imageUrl\n  };\n})() }}",
+                "options": {}
+            },
+            "id": "3",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                700,
+                460
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini Captions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini Captions": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
