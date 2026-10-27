@@ -1,219 +1,59 @@
-<div align="center">
+# Research Distillation Automation
 
-# 🤖 Research Automation
+A Next.js dashboard for browsing recent robotics research and drafting social media captions. The application calls n8n workflows for arXiv paper metadata and Gemini-generated captions for X, Instagram and LinkedIn. A generated image URL is constructed using Pollinations. The interface provides a copy action; it does not publish posts to social networks.
 
-### AI-Powered Research Tracking & Social Media Content Generator
+## How it works
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.1-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![n8n](https://img.shields.io/badge/n8n-Workflow-EA4B71?style=for-the-badge&logo=n8n&logoColor=white)](https://n8n.io/)
-[![Gemini](https://img.shields.io/badge/Google_Gemini-AI-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+```text
+Dashboard -> /api/papers -> n8n papers webhook -> arXiv cs.RO feed
+          -> /api/generate -> n8n generation webhook -> Gemini captions
+                           -> Pollinations image URL
+```
 
-*Automatically track cutting-edge robotics research and generate professional social media content for X, Instagram, and LinkedIn.*
+The papers workflow requests up to eight recently updated `cs.RO` entries. Its formatting node shortens the feed summary to 300 characters. The generation workflow sends the selected title and summary in a single prompt to Gemini for platform-specific captions. The Next.js generation route constructs its own image URL from title keywords and overrides the URL returned by n8n.
 
-[🚀 Demo](#demo) • [✨ Features](#features) • [🛠️ Installation](#installation) • [📖 Usage](#usage) • [🏗️ Architecture](#architecture)
+Paper data and the small archive are held in server process memory. The paper cache is keyed to the current UTC calendar day and can be refreshed; it is not a persistent database. Workflows are triggered by HTTP requests from the application, not by an included daily scheduled job. Usage counters in the dashboard are browser-local.
 
----
+## Important limitations
 
-</div>
+- **Fallback papers are example data, not verified research.** If the papers webhook fails, the server returns hard-coded fallback titles, descriptions and links without identifying them in the response as examples. The date-based archive filter may leave no current papers. Do not share them as actual research; check every title and link against arXiv.
+- **Generated text requires review.** If the generation webhook fails or exceeds the six-second timeout, the API returns generic prewritten captions. These can contain claims about validation or impact that do not come from the paper, and the response does not identify them as a fallback. Even a successful Gemini response may be inaccurate. Read the original paper and verify every claim before publishing.
+- **Image generation is an external service.** The app returns a Pollinations image URL, rather than using a Gemini image model. The title-derived prompt is sent to the image service when the image is requested. Availability and output are not guaranteed.
+- The paper summaries supplied to the caption prompt are shortened, not full-paper analysis. There is no evaluation of summary or claim accuracy in this repository.
+- The API routes connect to `http://localhost:5678`; this assumes the Next.js process and n8n are accessible at that address on the same host. Deployments with separate containers or hosts need networking and URL changes.
+- The Compose file uses `n8nio/n8n:latest` without a pinned version, and the generation workflow contains a placeholder credential reference. Configure credentials after import. The complete setup and live arXiv/Gemini/Pollinations workflow have not been independently reproduced for this README.
 
-## 📋 Overview
+## Intended local setup
 
-**Research Automation** is a full-stack web application that solves a common problem for researchers, tech enthusiasts, and content creators: staying up-to-date with the latest academic research while creating engaging social media content about it.
-
-The app automatically fetches the latest robotics papers from **Arxiv**, presents them in an elegant glassmorphism UI, and uses **Google Gemini AI** to generate platform-optimized captions for **X (Twitter)**, **Instagram**, and **LinkedIn**—complete with relevant imagery.
-
----
-
-## ✨ Features
-
-| Feature | Description |
-|---------|-------------|
-| 📡 **Real-time Research Tracking** | Fetches latest robotics papers from Arxiv daily with smart caching |
-| 🧠 **Multi-Platform AI Content** | Generates tailored captions for X, Instagram, and LinkedIn |
-| 🎨 **Premium Glassmorphism UI** | Modern dark theme with animated gradients and blur effects |
-| 📊 **API Usage Dashboard** | Track sync counts, generated posts, and system status |
-| ⚡ **Smart Daily Caching** | Minimizes API calls by caching data for 24 hours |
-| 🔄 **n8n Workflow Integration** | Extensible automation backend for custom workflows |
-| 📱 **Responsive Design** | Works seamlessly across desktop and mobile devices |
-
----
-
-## 🖼️ Screenshots
-
-<div align="center">
-
-| Research Dashboard | Content Generator |
-|:------------------:|:-----------------:|
-| Premium glass cards with full paper summaries | Multi-platform tabs with AI-generated content |
-
-</div>
-
----
-
-## �️ Installation
-
-### Prerequisites
-
-- **Node.js** 18.0 or higher
-- **Docker Desktop** (for n8n automation server)
-- **Google Gemini API Key** — [Get one free at Google AI Studio](https://aistudio.google.com/)
-
-### Quick Start
+The following steps reflect the files in this repository; a clean end-to-end run has not been verified. You need Git, Node.js 20.9 or newer (the minimum declared by the locked Next.js version), npm, Docker with Compose, and a Gemini credential for generated captions.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/yourusername/research-automation.git
-cd research-automation
-
-# 2. Install dependencies
-npm install
-
-# 3. Start n8n automation server (requires Docker)
-docker-compose up -d
-
-# 4. Start the development server
+git clone https://github.com/D3vil-coder/Research-Distillation-Automation.git
+cd Research-Distillation-Automation
+npm ci
+docker compose up -d
 npm run dev
-
-# 5. Open http://localhost:3000
 ```
 
-### n8n Configuration
+Open the app at `http://localhost:3000` and n8n at `http://localhost:5678`. In n8n, import [`workflow_fetch_papers.json`](n8n/workflow_fetch_papers.json) and [`workflow_generate_content.json`](n8n/workflow_generate_content.json), configure the Gemini credential on the generation node, and activate both workflows so their production webhooks can receive requests. Compatibility of the unpinned n8n image with these exported nodes and current Gemini credentials has not been checked.
 
-1. Navigate to [http://localhost:5678](http://localhost:5678)
-2. Create an account (local only)
-3. **Import Workflows:**
-   - `n8n/workflow_fetch_papers.json` — RSS feed processor
-   - `n8n/workflow_generate_content.json` — AI content generator
-4. **Add Credentials:**
-   - Go to Credentials → Add Credential → Google Gemini API
-   - Paste your API key
-5. **Activate** both workflows
+Starting the app without working n8n webhooks can show fallback data or generic captions as described above. `npm run build`, `npm start`, and `npm run lint` are defined in [`package.json`](package.json). The Compose configuration runs n8n only; this repository has no application Dockerfile.
 
----
+## Repository guide
 
-## 📖 Usage
+| Path | Purpose |
+| --- | --- |
+| [`app/page.js`](app/page.js) and [`components/`](components) | Dashboard, paper cards and caption interface |
+| [`app/api/papers/route.js`](app/api/papers/route.js) | Paper webhook, in-memory cache and fallback data |
+| [`app/api/generate/route.js`](app/api/generate/route.js) | Caption webhook, fallback text and image URL |
+| [`n8n/`](n8n) | Exported papers and generation workflows |
+| [`docker-compose.yml`](docker-compose.yml) | Local n8n service and persistent volume |
 
-### Basic Workflow
+## Next improvements
 
-1. **View Research** — The dashboard automatically displays the latest robotics papers
-2. **Select Paper** — Click "Create Post" on any paper card
-3. **Generate Content** — Click "Generate Content" to create AI-powered captions
-4. **Choose Platform** — Switch between X, Instagram, and LinkedIn tabs
-5. **Copy & Post** — Copy the optimized caption for your platform
+Replace unlabeled fabricated fallbacks with explicit error states, validate paper links and generated claims, pin and test the n8n version and credentials setup, make service URLs configurable, and add a reproducible end-to-end test with a known paper.
 
-### API Endpoints
+## License
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/papers` | `GET` | Fetch latest robotics papers (cached daily) |
-| `/api/generate` | `POST` | Generate multi-platform content for a paper |
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                      FRONTEND (Next.js 16)                   │
-├──────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐   │
-│  │ StatsPanel  │  │   Paper     │  │   GenerateCard      │   │
-│  │ (Dashboard) │  │  Carousel   │  │ (X/Insta/LinkedIn)  │   │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    API ROUTES (Next.js)                      │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐  │
-│  │  /api/papers        │    │  /api/generate              │  │
-│  │  • Daily caching    │    │  • Multi-platform captions  │  │
-│  │  • Fallback data    │    │  • Image keyword extraction │  │
-│  └─────────────────────┘    └─────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    n8n AUTOMATION SERVER                     │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐  │
-│  │  Fetch Papers       │    │  Generate Content           │  │
-│  │  • Arxiv RSS        │    │  • Gemini Text API          │  │
-│  │  • XML Parsing      │    │  • Gemini Image API         │  │
-│  └─────────────────────┘    └─────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-            ┌─────────────────┴─────────────────┐
-            │                                   │
-     ┌──────▼──────┐                   ┌────────▼────────┐
-     │   Arxiv     │                   │  Google Gemini  │
-     │   RSS API   │                   │   (AI Engine)   │
-     └─────────────┘                   └─────────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-research-automation/
-├── app/
-│   ├── api/
-│   │   ├── generate/
-│   │   │   └── route.js        # Multi-platform content generation
-│   │   └── papers/
-│   │       └── route.js        # Paper fetching with daily cache
-│   ├── globals.css             # Glassmorphism design system (300+ utilities)
-│   ├── layout.js               # Root layout with animated background
-│   └── page.js                 # Main dashboard page
-├── components/
-│   ├── GenerateCard.js         # Multi-tab content generator (X/Insta/LinkedIn)
-│   ├── PaperCarousel.js        # Horizontal scrolling paper cards
-│   └── StatsPanel.js           # API usage statistics dashboard
-├── n8n/
-│   ├── workflow_fetch_papers.json      # Arxiv RSS workflow
-│   └── workflow_generate_content.json  # Gemini AI workflow
-├── docker-compose.yml          # n8n container configuration
-├── package.json
-└── README.md
-```
-
----
-
-## 🎨 Design System
-
-The application features a custom **Glassmorphism** design system including:
-
-- **Animated Gradient Blobs** — Ambient purple/cyan/pink background animation
-- **Frosted Glass Cards** — `backdrop-filter: blur(24px)` with subtle borders
-- **Premium Typography** — Inter font with gradient text effects
-- **Micro-interactions** — Smooth hover states and transitions
-- **Dark Theme** — Optimized for reduced eye strain
-
----
-
-## 🚀 Deployment
-
-### Production Build
-
-```bash
-npm run build
-npm start
-```
-
-### Docker Deployment
-
-```bash
-# Build and run with Docker
-docker build -t research-automation .
-docker run -p 3000:3000 research-automation
-```
-
-
-## 📄 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
-
+[MIT](LICENSE)
 
