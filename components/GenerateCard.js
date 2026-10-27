@@ -9,17 +9,21 @@ export default function GenerateCard({ selectedPaper }) {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [imageError, setImageError] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [generationError, setGenerationError] = useState('');
 
     useEffect(() => {
         setResult(null);
         setImageLoaded(false);
         setImageError(false);
+        setGenerationError('');
     }, [selectedPaper]);
 
     const handleGenerate = async () => {
         if (!selectedPaper) return;
 
         setLoading(true);
+        setGenerationError('');
+        setResult(null);
         setImageLoaded(false);
         setImageError(false);
 
@@ -33,6 +37,7 @@ export default function GenerateCard({ selectedPaper }) {
                 })
             });
             const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Caption generation failed.');
             setResult(data);
 
             if (typeof window !== 'undefined' && window.updateStats) {
@@ -40,7 +45,7 @@ export default function GenerateCard({ selectedPaper }) {
             }
         } catch (e) {
             console.error(e);
-            alert('Failed to generate content.');
+            setGenerationError(e.message || 'Caption generation failed. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -137,6 +142,7 @@ export default function GenerateCard({ selectedPaper }) {
                     <p style={{ opacity: 0.6, maxWidth: '32rem', marginBottom: '2.5rem', lineHeight: 1.7, fontSize: '1.1rem' }}>
                         Generate high-engagement captions and a bespoke AI render designed for platform-specific reach.
                     </p>
+                    {generationError && <p role="alert" style={{ color: '#fca5a5', marginBottom: '1rem' }}>{generationError}</p>}
 
                     <button
                         onClick={handleGenerate}
@@ -257,6 +263,9 @@ export default function GenerateCard({ selectedPaper }) {
 
                     {/* Caption Engine */}
                     <div style={{ padding: '2rem' }}>
+                        <p style={{ color: '#fcd34d', marginBottom: '1rem' }}>
+                            Draft generated from a shortened abstract. Verify its claims against the original paper before sharing.
+                        </p>
                         <div
                             className="custom-scrollbar"
                             style={{

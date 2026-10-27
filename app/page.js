@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react';
 import GenerateCard from '@/components/GenerateCard';
 import PaperCarousel from '@/components/PaperCarousel';
 import StatsPanel from '@/components/StatsPanel';
-import { RotateCw, CheckCircle, RefreshCw } from 'lucide-react';
+import { RotateCw, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function Home() {
     const [papers, setPapers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedPaper, setSelectedPaper] = useState(null);
     const [lastUpdated, setLastUpdated] = useState(null);
+    const [feedError, setFeedError] = useState('');
 
     useEffect(() => {
         const cachedDate = localStorage.getItem('lastFetchDate');
@@ -21,11 +22,15 @@ export default function Home() {
         fetchPapers();
     }, []);
 
-    const fetchPapers = async () => {
+    const fetchPapers = async (refresh = false) => {
         setLoading(true);
+        setFeedError('');
         try {
-            const res = await fetch('/api/papers');
+            const res = await fetch(refresh ? '/api/papers?refresh=true' : '/api/papers');
             const data = await res.json();
+            if (!res.ok || !Array.isArray(data)) {
+                throw new Error(data.error || 'Research feed returned an invalid response.');
+            }
             if (Array.isArray(data)) {
                 setPapers(data);
                 const today = new Date().toISOString().split('T')[0];
@@ -44,6 +49,11 @@ export default function Home() {
             }
         } catch (err) {
             console.error("Failed to fetch papers", err);
+            setPapers([]);
+            setSelectedPaper(null);
+            setLastUpdated(null);
+            localStorage.removeItem('lastFetchDate');
+            setFeedError(err.message || 'Research feed unavailable. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -51,7 +61,7 @@ export default function Home() {
 
     const handleUpdate = () => {
         localStorage.removeItem('lastFetchDate');
-        fetchPapers();
+        fetchPapers(true);
     };
 
     const handleSelectPaper = (paper) => {
@@ -83,6 +93,10 @@ export default function Home() {
                     {loading ? (
                         <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.7 }}>
                             <RotateCw style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} /> Syncing...
+                        </span>
+                    ) : feedError ? (
+                        <span role="status" style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fca5a5' }}>
+                            <AlertTriangle style={{ width: 16, height: 16 }} /> Feed unavailable
                         </span>
                     ) : (
                         <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#4ade80' }}>
@@ -119,6 +133,7 @@ export default function Home() {
                 </div>
             </header>
 
+            {feedError && <p role="alert" style={{ color: '#fca5a5', textAlign: 'center' }}>{feedError}</p>}
             <StatsPanel />
 
             <PaperCarousel

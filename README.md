@@ -16,8 +16,8 @@ Paper data and the small archive are held in server process memory. The paper ca
 
 ## Important limitations
 
-- **Fallback papers are example data, not verified research.** If the papers webhook fails, the server returns hard-coded fallback titles, descriptions and links without identifying them in the response as examples. The date-based archive filter may leave no current papers. Do not share them as actual research; check every title and link against arXiv.
-- **Generated text requires review.** If the generation webhook fails or exceeds the six-second timeout, the API returns generic prewritten captions. These can contain claims about validation or impact that do not come from the paper, and the response does not identify them as a fallback. Even a successful Gemini response may be inaccurate. Read the original paper and verify every claim before publishing.
+- **The feed can be unavailable.** If the papers webhook fails or returns an invalid response, the API reports an error and the dashboard shows that the feed is unavailable. The date-based archive filter may leave no current papers. Check titles and links against arXiv before sharing.
+- **Generated text requires review.** If the generation webhook fails, times out, or returns incomplete captions, the API reports an error rather than returning generic captions. Even a successful Gemini response may be inaccurate. Read the original paper and verify every claim before publishing.
 - **Image generation is an external service.** The app returns a Pollinations image URL, rather than using a Gemini image model. The title-derived prompt is sent to the image service when the image is requested. Availability and output are not guaranteed.
 - The paper summaries supplied to the caption prompt are shortened, not full-paper analysis. There is no evaluation of summary or claim accuracy in this repository.
 - The API routes connect to `http://localhost:5678`; this assumes the Next.js process and n8n are accessible at that address on the same host. Deployments with separate containers or hosts need networking and URL changes.
@@ -37,21 +37,21 @@ npm run dev
 
 Open the app at `http://localhost:3000` and n8n at `http://localhost:5678`. In n8n, import [`workflow_fetch_papers.json`](n8n/workflow_fetch_papers.json) and [`workflow_generate_content.json`](n8n/workflow_generate_content.json), configure the Gemini credential on the generation node, and activate both workflows so their production webhooks can receive requests. Compatibility of the unpinned n8n image with these exported nodes and current Gemini credentials has not been checked.
 
-Starting the app without working n8n webhooks can show fallback data or generic captions as described above. `npm run build`, `npm start`, and `npm run lint` are defined in [`package.json`](package.json). The Compose configuration runs n8n only; this repository has no application Dockerfile.
+Starting the app without working n8n webhooks shows an unavailable message. `npm run build`, `npm start`, and `npm run lint` are defined in [`package.json`](package.json). The Compose configuration runs n8n only; this repository has no application Dockerfile. Run `node --test tests/route-safety.test.mjs` for route tests with mocked upstream responses.
 
 ## Repository guide
 
 | Path | Purpose |
 | --- | --- |
 | [`app/page.js`](app/page.js) and [`components/`](components) | Dashboard, paper cards and caption interface |
-| [`app/api/papers/route.js`](app/api/papers/route.js) | Paper webhook, in-memory cache and fallback data |
-| [`app/api/generate/route.js`](app/api/generate/route.js) | Caption webhook, fallback text and image URL |
+| [`app/api/papers/route.js`](app/api/papers/route.js) | Paper webhook, in-memory cache and error handling |
+| [`app/api/generate/route.js`](app/api/generate/route.js) | Caption webhook, input validation and image URL |
 | [`n8n/`](n8n) | Exported papers and generation workflows |
 | [`docker-compose.yml`](docker-compose.yml) | Local n8n service and persistent volume |
 
 ## Next improvements
 
-Replace unlabeled fabricated fallbacks with explicit error states, validate paper links and generated claims, pin and test the n8n version and credentials setup, make service URLs configurable, and add a reproducible end-to-end test with a known paper.
+Validate paper links and generated claims, pin and test the n8n version and credentials setup, make service URLs configurable, and add a reproducible end-to-end test with a known paper.
 
 ## License
 
